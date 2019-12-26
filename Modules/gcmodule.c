@@ -137,16 +137,19 @@ _PyGC_InitState(GCState *gcstate)
 {
     gcstate->enabled = 1; /* automatic collection enabled? */
 
-#define _GEN_HEAD(n) GEN_HEAD(gcstate, n)
-    struct gc_generation generations[NUM_GENERATIONS] = {
-        /* PyGC_Head,                                    threshold,    count */
-        {{(uintptr_t)_GEN_HEAD(0), (uintptr_t)_GEN_HEAD(0)},   700,        0},
-        {{(uintptr_t)_GEN_HEAD(1), (uintptr_t)_GEN_HEAD(1)},   10,         0},
-        {{(uintptr_t)_GEN_HEAD(2), (uintptr_t)_GEN_HEAD(2)},   10,         0},
-    };
-    for (int i = 0; i < NUM_GENERATIONS; i++) {
-        gcstate->generations[i] = generations[i];
-    };
+    struct gc_generation generation;
+    for (int i = 0; i < NUM_GENERATIONS; ++i) {
+        uintptr_t gen_head = GEN_HEAD(gcstate, i);
+        unsigned int threshold = (i == 0 ? 700 : 10);
+        unsigned int count = 0;
+        
+        generation.head._gc_next = gen_head;
+        generation.head._gc_prev = gen_head;
+        generation.threshold = threshold;
+        generation.count = count;
+        
+        gcstate->generations[i] = generation;
+    }
     gcstate->generation0 = GEN_HEAD(gcstate, 0);
     struct gc_generation permanent_generation = {
           {(uintptr_t)&gcstate->permanent_generation.head,
@@ -1536,11 +1539,16 @@ gc_set_threshold(PyObject *self, PyObject *args)
 {
     PyThreadState *tstate = _PyThreadState_GET();
     GCState *gcstate = &tstate->interp->gc;
-    if (!PyArg_ParseTuple(args, "i|ii:set_threshold",
-                          &gcstate->generations[0].threshold,
-                          &gcstate->generations[1].threshold,
-                          &gcstate->generations[2].threshold))
+    int parse_tuple_result = PyArg_ParseTuple(
+      args, 
+      "i|ii:set_threshold",
+      &gcstate->generations[0].threshold,
+      &gcstate->generations[1].threshold,
+      &gcstate->generations[2].threshold
+    );
+    if (!parse_tuple_result) {
         return NULL;
+    }
     for (int i = 3; i < NUM_GENERATIONS; i++) {
         /* generations higher than 2 get the same threshold */
         gcstate->generations[i].threshold = gcstate->generations[2].threshold;
@@ -1560,10 +1568,24 @@ gc_get_threshold_impl(PyObject *module)
 {
     PyThreadState *tstate = _PyThreadState_GET();
     GCState *gcstate = &tstate->interp->gc;
-    return Py_BuildValue("(iii)",
-                         gcstate->generations[0].threshold,
-                         gcstate->generations[1].threshold,
-                         gcstate->generations[2].threshold);
+
+    char *format = (char*)malloc(NUM_GENERATIONS + 3); // for (, ), and '\0'
+    format[0] = '(';
+    format[NUM_GENERATIONS + 1] = ')';
+    format[NUM_GENERATIONS + 2] = '\0';
+    for(int i = 1; i < NUM_GENERATIONS + 1; ++i) {
+        format[i] = 'i';
+    }
+    // int *thresholds = (int*)malloc(NUM_GENERATIONS * sizeof(int));
+
+    PyObject *return_value = Py_BuildValue(
+      format,
+      gcstate->generations[0].threshold,
+      gcstate->generations[1].threshold,
+      gcstate->generations[2].threshold
+    );
+    free(format);
+    return return_value;
 }
 
 /*[clinic input]
@@ -1578,10 +1600,23 @@ gc_get_count_impl(PyObject *module)
 {
     PyThreadState *tstate = _PyThreadState_GET();
     GCState *gcstate = &tstate->interp->gc;
-    return Py_BuildValue("(iii)",
-                         gcstate->generations[0].count,
-                         gcstate->generations[1].count,
-                         gcstate->generations[2].count);
+
+    char *format = (char*)malloc(NUM_GENERATIONS + 3); // for (, ), and '\0'
+    format[0] = '(';
+    format[NUM_GENERATIONS + 1] = ')';
+    format[NUM_GENERATIONS + 2] = '\0';
+    for(int i = 1; i < NUM_GENERATIONS + 1; ++i) {
+        format[i] = 'i';
+    }
+
+    PyObject *return_value = Py_BuildValue(
+      format,
+      gcstate->generations[0].count,
+      gcstate->generations[1].count,
+      gcstate->generations[2].count
+    );
+    free(format);
+    return return_value;
 }
 
 static int

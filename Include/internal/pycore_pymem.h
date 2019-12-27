@@ -15,7 +15,8 @@ extern "C" {
 
 /* If we change this, we need to change the default value in the
    signature of gc.collect. */
-#define NUM_GENERATIONS 3
+#define NUM_GENERATIONS 5
+#define UNPACK_ARRAY(array) array[0], array[1], array[2], array[3], array[4]
 
 /*
    NOTE: about the counting of long-lived objects.

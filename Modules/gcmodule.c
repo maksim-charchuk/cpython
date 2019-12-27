@@ -1539,13 +1539,26 @@ gc_set_threshold(PyObject *self, PyObject *args)
 {
     PyThreadState *tstate = _PyThreadState_GET();
     GCState *gcstate = &tstate->interp->gc;
+
+    int *thresholds[NUM_GENERATIONS];
+    for (int i = 0; i < NUM_GENERATIONS; ++i) {
+        thresholds[i] = &gcstate->generations[i].threshold;
+    }
+
+    char format[NUM_GENERATIONS + 20];
+    char str[NUM_GENERATIONS];
+    for(int i = 0; i < NUM_GENERATIONS; ++i) {
+        str[i] = 'i';
+    }
+    str[NUM_GENERATIONS - 1] = '\0';
+    sprintf(format, "i|%s:set_threshold", str);
+
     int parse_tuple_result = PyArg_ParseTuple(
-      args, 
-      "i|ii:set_threshold",
-      &gcstate->generations[0].threshold,
-      &gcstate->generations[1].threshold,
-      &gcstate->generations[2].threshold
+      args,
+      format,
+      UNPACK_ARRAY(thresholds)
     );
+    
     if (!parse_tuple_result) {
         return NULL;
     }
@@ -1569,22 +1582,22 @@ gc_get_threshold_impl(PyObject *module)
     PyThreadState *tstate = _PyThreadState_GET();
     GCState *gcstate = &tstate->interp->gc;
 
-    char *format = (char*)malloc(NUM_GENERATIONS + 3); // for (, ), and '\0'
+    char format[NUM_GENERATIONS + 3]; // for (, ), and '\0'
     format[0] = '(';
     format[NUM_GENERATIONS + 1] = ')';
     format[NUM_GENERATIONS + 2] = '\0';
     for(int i = 1; i < NUM_GENERATIONS + 1; ++i) {
         format[i] = 'i';
     }
-    // int *thresholds = (int*)malloc(NUM_GENERATIONS * sizeof(int));
+    int thresholds[NUM_GENERATIONS];
+    for (int i = 0; i < NUM_GENERATIONS; ++i) {
+        thresholds[i] = gcstate->generations[i].threshold;
+    }
 
     PyObject *return_value = Py_BuildValue(
       format,
-      gcstate->generations[0].threshold,
-      gcstate->generations[1].threshold,
-      gcstate->generations[2].threshold
+      UNPACK_ARRAY(thresholds)
     );
-    free(format);
     return return_value;
 }
 
@@ -1601,7 +1614,7 @@ gc_get_count_impl(PyObject *module)
     PyThreadState *tstate = _PyThreadState_GET();
     GCState *gcstate = &tstate->interp->gc;
 
-    char *format = (char*)malloc(NUM_GENERATIONS + 3); // for (, ), and '\0'
+    char format[NUM_GENERATIONS + 3];
     format[0] = '(';
     format[NUM_GENERATIONS + 1] = ')';
     format[NUM_GENERATIONS + 2] = '\0';
@@ -1609,13 +1622,15 @@ gc_get_count_impl(PyObject *module)
         format[i] = 'i';
     }
 
+    int counts[NUM_GENERATIONS];
+    for (int i = 0; i < NUM_GENERATIONS; ++i) {
+        counts[i] = gcstate->generations[i].count;
+    }
+
     PyObject *return_value = Py_BuildValue(
       format,
-      gcstate->generations[0].count,
-      gcstate->generations[1].count,
-      gcstate->generations[2].count
+      UNPACK_ARRAY(counts)
     );
-    free(format);
     return return_value;
 }
 
